@@ -4,7 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+
+
 #include "SingleBoids.generated.h"
+
+
+class ABoidsManager;
 
 UCLASS()
 class BOIDS_API ASingleBoids : public AActor
@@ -27,6 +32,6 @@ public:
 	int Id;
 
 	UPROPERTY()
-	BoidsManager* Owner;
+	ABoidsManager* BoidsOwner;
 	
 };

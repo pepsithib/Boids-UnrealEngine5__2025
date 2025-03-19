@@ -2,7 +2,8 @@
 
 
 #include "SingleBoids.h"
-
+#include "BoidsManager.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 ASingleBoids::ASingleBoids()
@@ -23,6 +24,13 @@ void ASingleBoids::BeginPlay()
 void ASingleBoids::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	
+	FVector Pos = BoidsOwner->BoidsPosition[Id];
+
+	SetActorLocation(Pos);
+	SetActorRotation(BoidsOwner->BoidsDirection[Id].ToOrientationRotator());
+	
 
 }
 

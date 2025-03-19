@@ -40,6 +40,9 @@ public:
 	int NbOfBoids = 300;
 
 	UPROPERTY(EditAnywhere, Category = "Boids")
+	float speed = 500.0;
+
+	UPROPERTY(EditAnywhere, Category = "Boids")
 	float Str_Alignement = 1.0;
 
 	UPROPERTY(EditAnywhere, Category = "Boids")
