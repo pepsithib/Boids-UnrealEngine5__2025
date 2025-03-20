@@ -3,7 +3,7 @@
 
 #include "BoidsManager.h"
 #include "SingleBoids.h"
-
+#include <omp.h>
 // Sets default values
 ABoidsManager::ABoidsManager()
 {
@@ -41,66 +41,64 @@ void ABoidsManager::BeginPlay()
 void ABoidsManager::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	ParallelFor(BoidsPosition.Num(), [&](int32 i) {
+			if (BoidsPosition[i].X < -1500.f) BoidsPosition[i].X = 1500.f;
+			else if (BoidsPosition[i].X > 1500.f) BoidsPosition[i].X = -1500.f;
 
-	for (int i = 0; i < BoidsPosition.Num(); i++) {
+			if (BoidsPosition[i].Y < -1500.f) BoidsPosition[i].Y = 1500.f;
+			else if (BoidsPosition[i].Y > 1500.f) BoidsPosition[i].Y = -1500.f;
 
-		if (BoidsPosition[i].X < -1500.f) BoidsPosition[i].X = 1500.f;
-		else if (BoidsPosition[i].X > 1500.f) BoidsPosition[i].X = -1500.f;
+			if (BoidsPosition[i].Z < -1500.f) BoidsPosition[i].Z = 1500.f;
+			else if (BoidsPosition[i].Z > 1500.f) BoidsPosition[i].Z = -1500.f;
 
-		if (BoidsPosition[i].Y < -1500.f) BoidsPosition[i].Y = 1500.f;
-		else if (BoidsPosition[i].Y > 1500.f) BoidsPosition[i].Y = -1500.f;
-
-		if (BoidsPosition[i].Z < -1500.f) BoidsPosition[i].Z = 1500.f;
-		else if (BoidsPosition[i].Z > 1500.f) BoidsPosition[i].Z = -1500.f;
-
-		FVector Accel = FVector(0.0);
-		FVector Separation = FVector(0.0);
-		FVector Alignement = FVector(0.0);
-		FVector Centroid = FVector(0.0);
+			FVector Accel = FVector(0.0);
+			FVector Separation = FVector(0.0);
+			FVector Alignement = FVector(0.0);
+			FVector Centroid = FVector(0.0);
 
 
-		int nb_ali = 0;
-		int nb_cen = 0;
-		int nb_sep = 0;
+			int nb_ali = 0;
+			int nb_cen = 0;
+			int nb_sep = 0;
 
-		for (int j = 0; j < BoidsPosition.Num(); j++) {
-			if (i == j) continue;
+			ParallelFor(BoidsPosition.Num(), [&](int32 j) {
+				if (i == j) {}
+				else {
+					float Dist = FVector::Dist(BoidsPosition[j], BoidsPosition[i]);
+					float Angle = acos(BoidsDirection[i].Dot(FVector(BoidsPosition[j] - BoidsPosition[i])));
+					float Min_Dist = Dist;
 
-			float Dist = FVector::Dist(BoidsPosition[j], BoidsPosition[i]);
-			float Angle = acos(BoidsDirection[i].Dot(FVector(BoidsPosition[j] - BoidsPosition[i])));
-			float Min_Dist = Dist;
+					if (Dist < Dist_Alignement && Angle < FieldOfView) {
+						nb_ali++;
+						Alignement += BoidsDirection[j];
+					}
+					if (Dist < Dist_Cohesion && Angle < FieldOfView) {
+						nb_cen++;
+						Centroid += BoidsPosition[j];
+					}
+					if (Dist < Dist_Separation && Angle < FieldOfView) {
+						nb_sep++;
+						Separation += FVector(BoidsPosition[i] - BoidsPosition[j]) / Dist;
+					}
+				}
+				}, false);
 
-			if (Dist < Dist_Alignement && Angle < FieldOfView) {
-				nb_ali++;
-				Alignement += BoidsDirection[j];
+
+			if (nb_ali > 0) Alignement = (Alignement / nb_ali) - BoidsDirection[i];
+			if (nb_cen > 0) {
+				Centroid = Centroid / nb_cen;
+				Centroid = (Centroid - BoidsPosition[i]) - BoidsDirection[i];
 			}
-			if (Dist < Dist_Cohesion && Angle < FieldOfView) {
-				nb_cen++;
-				Centroid += BoidsPosition[j];
-			}
-			if (Dist < Dist_Separation && Angle < FieldOfView) {
-				nb_sep++;
-				Separation += FVector(BoidsPosition[i]-BoidsPosition[j])/Dist;
-			}
-			
-		}
+			if (nb_sep > 0) Separation = (Separation / nb_sep) - BoidsDirection[i];
 
-		
-		if (nb_ali > 0) Alignement = (Alignement / nb_ali) - BoidsDirection[i];
-		if (nb_cen > 0) {
-			Centroid = Centroid / nb_cen;
-			Centroid = (Centroid - BoidsPosition[i]) - BoidsDirection[i];
-		}
-		if (nb_sep > 0) Separation = (Separation / nb_sep) - BoidsDirection[i];
+			Accel = Alignement.GetSafeNormal() * Str_Alignement;
+			Accel += Centroid.GetSafeNormal() * Str_Cohesion;
+			Accel += Separation.GetSafeNormal() * Str_Separation;
 
-		Accel = Alignement.GetSafeNormal()*Str_Alignement;
-		Accel += Centroid.GetSafeNormal()*Str_Cohesion;
-		Accel += Separation.GetSafeNormal() * Str_Separation;
+			BoidsDirection[i] += Accel;
 
-		BoidsDirection[i] += Accel;
+			BoidsPosition[i] += BoidsDirection[i].GetSafeNormal() * DeltaTime * speed;
 
-		BoidsPosition[i] += BoidsDirection[i].GetSafeNormal() * DeltaTime * speed;
-
-	}
+		},false);
 
 }
