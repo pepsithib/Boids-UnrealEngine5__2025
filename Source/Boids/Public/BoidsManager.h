@@ -36,6 +36,10 @@ public:
 	UPROPERTY(EditAnywhere)
 	TArray<FVector> BoidsDirection;
 
+	TArray<FVector> BufBoidsPosition;
+	TArray<FVector> BufBoidsDir;
+
+
 	UPROPERTY(EditAnywhere, Category="Boids")
 	int NbOfBoids = 300;
 
@@ -50,6 +54,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Boids")
 	float Str_Separation = 1.0;
+
+	UPROPERTY(EditAnywhere, Category = "Boids")
+	float Str_Collision = 1.0;
+
 
 	UPROPERTY(EditAnywhere, Category = "Boids")
 	float Dist_Alignement = 300.0;

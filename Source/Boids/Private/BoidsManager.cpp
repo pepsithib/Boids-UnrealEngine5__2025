@@ -3,7 +3,9 @@
 
 #include "BoidsManager.h"
 #include "SingleBoids.h"
+#include "Kismet/KismetMathLibrary.h"
 #include <omp.h>
+
 // Sets default values
 ABoidsManager::ABoidsManager()
 {
@@ -21,84 +23,120 @@ void ABoidsManager::BeginPlay()
 
 		
 
-		FVector Location(FMath::RandRange(-1000.0f,1000.f), FMath::RandRange(-1000.0f, 1000.f), FMath::RandRange(-1000.0f, 1000.f));
+		FVector Location(FMath::RandRange(1.f, 2999.f), FMath::RandRange(1.0f, 2999.f), FMath::RandRange(1.0f, 2999.f));
 		FRotator Rotation(0.0f, 0.0f, 0.0f);
 		FActorSpawnParameters SpawnInfo;
 		ASingleBoids* MaBoids = GetWorld()->SpawnActor<ASingleBoids>(Boids,Location, Rotation);
-
+		FVector Dir = FVector(FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f));
 		MaBoids->Id = x;
 		MaBoids->BoidsOwner = this;
 		BoidsPosition.Add(Location);
-		BoidsDirection.Add(FVector(FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f)));
-
+		BoidsDirection.Add(Dir);
+		BufBoidsPosition.Add(Location);
+		BufBoidsDir.Add(Dir);
 	}
-
-
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("%i"),BufBoidsPosition.Num()));
+	
 	
 }
 
 // Called every frame
 void ABoidsManager::Tick(float DeltaTime)
 {
+	
 	Super::Tick(DeltaTime);
 	ParallelFor(BoidsPosition.Num(), [&](int32 i) {
-			if (BoidsPosition[i].X < -1500.f) BoidsPosition[i].X = 1500.f;
-			else if (BoidsPosition[i].X > 1500.f) BoidsPosition[i].X = -1500.f;
+		if (BoidsPosition[i].X < 0.f) BufBoidsPosition[i].X = 3000.f;
+		else if (BoidsPosition[i].X > 3000.f) BufBoidsPosition[i].X = 0.f;
 
-			if (BoidsPosition[i].Y < -1500.f) BoidsPosition[i].Y = 1500.f;
-			else if (BoidsPosition[i].Y > 1500.f) BoidsPosition[i].Y = -1500.f;
+		if (BoidsPosition[i].Y < 0.f) BufBoidsPosition[i].Y = 3000.f;
+		else if (BoidsPosition[i].Y > 3000.f) BufBoidsPosition[i].Y = 0.f;
 
-			if (BoidsPosition[i].Z < -1500.f) BoidsPosition[i].Z = 1500.f;
-			else if (BoidsPosition[i].Z > 1500.f) BoidsPosition[i].Z = -1500.f;
+		if (BoidsPosition[i].Z < 0.f) BufBoidsPosition[i].Z = 3000.f;
+		else if (BoidsPosition[i].Z > 3000.f) BufBoidsPosition[i].Z = 0.f;
 
-			FVector Accel = FVector(0.0);
-			FVector Separation = FVector(0.0);
-			FVector Alignement = FVector(0.0);
-			FVector Centroid = FVector(0.0);
+		FVector Accel = FVector(0.0);
+		FVector Separation = FVector(0.0);
+		FVector Alignement = FVector(0.0);
+		FVector Centroid = FVector(0.0);
+		FVector Collision = FVector(0.0);
 
+		int nb_ali = 0;
+		int nb_cen = 0;
+		int nb_sep = 0;
+		int nb_col = 0;
 
-			int nb_ali = 0;
-			int nb_cen = 0;
-			int nb_sep = 0;
+		for (int j = 0; j < BoidsPosition.Num(); j++) {
+			if (i == j) {}
+			else {
+				float Dist = FVector::Dist(BoidsPosition[i], BoidsPosition[j]);
+				float Angle = acos(BoidsDirection[i].Dot(FVector(BoidsPosition[j] - BoidsPosition[i])));
+				float Min_Dist = Dist;
+				float RFoV = FMath::DegreesToRadians(FieldOfView*0.5f);
 
-			ParallelFor(BoidsPosition.Num(), [&](int32 j) {
-				if (i == j) {}
-				else {
-					float Dist = FVector::Dist(BoidsPosition[j], BoidsPosition[i]);
-					float Angle = acos(BoidsDirection[i].Dot(FVector(BoidsPosition[j] - BoidsPosition[i])));
-					float Min_Dist = Dist;
-
-					if (Dist < Dist_Alignement && Angle < FieldOfView) {
-						nb_ali++;
-						Alignement += BoidsDirection[j];
-					}
-					if (Dist < Dist_Cohesion && Angle < FieldOfView) {
-						nb_cen++;
-						Centroid += BoidsPosition[j];
-					}
-					if (Dist < Dist_Separation && Angle < FieldOfView) {
-						nb_sep++;
-						Separation += FVector(BoidsPosition[i] - BoidsPosition[j]) / Dist;
-					}
+				if (Dist < Dist_Alignement && Angle < RFoV) {
+					nb_ali++;
+					Alignement += BoidsDirection[j];
 				}
-				}, false);
-
-
-			if (nb_ali > 0) Alignement = (Alignement / nb_ali) - BoidsDirection[i];
-			if (nb_cen > 0) {
-				Centroid = Centroid / nb_cen;
-				Centroid = (Centroid - BoidsPosition[i]) - BoidsDirection[i];
+				if (Dist < Dist_Cohesion && Angle < RFoV) {
+					nb_cen++;
+					Centroid += BoidsPosition[j];
+				}
+				if (Dist < Dist_Separation && Angle < RFoV) {
+					nb_sep++;
+					Separation += FVector(BoidsPosition[i] - BoidsPosition[j]) * (Dist/Dist_Separation);
+				}
 			}
-			if (nb_sep > 0) Separation = (Separation / nb_sep) - BoidsDirection[i];
 
-			Accel = Alignement.GetSafeNormal() * Str_Alignement;
-			Accel += Centroid.GetSafeNormal() * Str_Cohesion;
-			Accel += Separation.GetSafeNormal() * Str_Separation;
 
-			BoidsDirection[i] += Accel;
+		}
+		for (int ray = 0; ray < 16; ray++) {
+			float t = ray / 16.f;
+			float theta = FMath::Acos(1.f - 2.f * t);
+			float phi = 2.f * 3.1415f * 1.618f * ray;
+			FVector Pos;
+			Pos.X = FMath::Sin(theta) * FMath::Cos(phi);
+			Pos.Y = FMath::Sin(theta) * FMath::Sin(phi);
+			Pos.Z = FMath::Cos(theta);
 
-			BoidsPosition[i] += BoidsDirection[i].GetSafeNormal() * DeltaTime * speed;
+			FHitResult ResultatHit;
+			FCollisionQueryParams ParamsCollision;
+			ParamsCollision.AddIgnoredActor(this); // Ignore l'acteur qui lance le raycast
+			// Effectuer le raycast
+			bool aHit = GetWorld()->LineTraceSingleByChannel(
+				ResultatHit,
+				BoidsPosition[i],
+				BoidsPosition[i] + (Pos * 60),
+				ECC_Visibility,
+				ParamsCollision
+			);
+			if (aHit) {
+				nb_col++;
+				Collision += ResultatHit.ImpactNormal;
+			}
+		}
 
-		},false);
+		if (nb_ali > 0) Alignement = (Alignement / nb_ali) - BoidsDirection[i];
+		if (nb_cen > 0) {
+			Centroid = Centroid / nb_cen;
+			Centroid = (Centroid - BoidsPosition[i]) - BoidsDirection[i];
+		}
 
+		if (nb_sep > 0) Separation = (Separation / nb_sep) - BoidsDirection[i];
+
+
+		Accel = Alignement.GetSafeNormal() * Str_Alignement;l
+		Accel += Centroid.GetSafeNormal() * Str_Cohesion;
+		Accel += Separation.GetSafeNormal() * Str_Separation;
+		Accel += Collision.GetSafeNormal() * Str_Collision;
+
+		BufBoidsDir[i] = BoidsDirection[i] + Accel;
+
+		BufBoidsPosition[i] += BufBoidsDir[i].GetSafeNormal() * DeltaTime * speed;
+		}, false);
+
+	ParallelFor(BoidsPosition.Num(), [&](int32 x) {
+		BoidsDirection[x] = BufBoidsDir[x].GetSafeNormal();
+		BoidsPosition[x] = BufBoidsPosition[x];
+		}, false);
 }
