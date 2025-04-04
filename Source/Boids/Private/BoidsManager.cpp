@@ -21,8 +21,6 @@ void ABoidsManager::BeginPlay()
 
 	for (int x = 0; x < NbOfBoids; x++) {
 
-		
-
 		FVector Location(FMath::RandRange(1.f, 2999.f), FMath::RandRange(1.0f, 2999.f), FMath::RandRange(1.0f, 2999.f));
 		FRotator Rotation(0.0f, 0.0f, 0.0f);
 		FActorSpawnParameters SpawnInfo;
@@ -30,13 +28,16 @@ void ABoidsManager::BeginPlay()
 		FVector Dir = FVector(FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f), FMath::RandRange(-1.0f, 1.0f));
 		MaBoids->Id = x;
 		MaBoids->BoidsOwner = this;
+
+		//Array
 		BoidsPosition.Add(Location);
 		BoidsDirection.Add(Dir);
+
+
+		//Buffr Array
 		BufBoidsPosition.Add(Location);
 		BufBoidsDir.Add(Dir);
 	}
-	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("%i"),BufBoidsPosition.Num()));
-	
 	
 }
 
@@ -46,6 +47,9 @@ void ABoidsManager::Tick(float DeltaTime)
 	
 	Super::Tick(DeltaTime);
 	ParallelFor(BoidsPosition.Num(), [&](int32 i) {
+
+
+		// Box tp stuff
 		if (BoidsPosition[i].X < 0.f) BufBoidsPosition[i].X = 3000.f;
 		else if (BoidsPosition[i].X > 3000.f) BufBoidsPosition[i].X = 0.f;
 
@@ -66,6 +70,7 @@ void ABoidsManager::Tick(float DeltaTime)
 		int nb_sep = 0;
 		int nb_col = 0;
 
+		// Calculation of different rules
 		for (int j = 0; j < BoidsPosition.Num(); j++) {
 			if (i == j) {}
 			else {
@@ -90,6 +95,7 @@ void ABoidsManager::Tick(float DeltaTime)
 
 
 		}
+		// Collision avoidace
 		for (int ray = 0; ray < 16; ray++) {
 			float t = ray / 16.f;
 			float theta = FMath::Acos(1.f - 2.f * t);
@@ -101,8 +107,8 @@ void ABoidsManager::Tick(float DeltaTime)
 
 			FHitResult ResultatHit;
 			FCollisionQueryParams ParamsCollision;
-			ParamsCollision.AddIgnoredActor(this); // Ignore l'acteur qui lance le raycast
-			// Effectuer le raycast
+			ParamsCollision.AddIgnoredActor(this);
+
 			bool aHit = GetWorld()->LineTraceSingleByChannel(
 				ResultatHit,
 				BoidsPosition[i],
@@ -116,25 +122,29 @@ void ABoidsManager::Tick(float DeltaTime)
 			}
 		}
 
+		//Steering forces
 		if (nb_ali > 0) Alignement = (Alignement / nb_ali) - BoidsDirection[i];
 		if (nb_cen > 0) {
 			Centroid = Centroid / nb_cen;
 			Centroid = (Centroid - BoidsPosition[i]) - BoidsDirection[i];
 		}
-
 		if (nb_sep > 0) Separation = (Separation / nb_sep) - BoidsDirection[i];
 
-
-		Accel = Alignement.GetSafeNormal() * Str_Alignement;l
+		//Adding the forces with their corresponding weight
+		Accel = Alignement.GetSafeNormal() * Str_Alignement;
 		Accel += Centroid.GetSafeNormal() * Str_Cohesion;
 		Accel += Separation.GetSafeNormal() * Str_Separation;
 		Accel += Collision.GetSafeNormal() * Str_Collision;
 
+
+		//Updating the buffer
 		BufBoidsDir[i] = BoidsDirection[i] + Accel;
 
 		BufBoidsPosition[i] += BufBoidsDir[i].GetSafeNormal() * DeltaTime * speed;
+
 		}, false);
 
+	//Updating the Positon and Direction array with the buffers
 	ParallelFor(BoidsPosition.Num(), [&](int32 x) {
 		BoidsDirection[x] = BufBoidsDir[x].GetSafeNormal();
 		BoidsPosition[x] = BufBoidsPosition[x];

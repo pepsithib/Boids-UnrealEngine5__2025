@@ -25,10 +25,12 @@ void ASingleBoids::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	
+	//Boids getting their positin from the Manager
 	FVector Pos = BoidsOwner->BoidsPosition[Id];
 
 	SetActorLocation(Pos);
+
+	//Boids rotating with the direction from the manager
 	SetActorRotation(BoidsOwner->BoidsDirection[Id].ToOrientationRotator());
 	
 
